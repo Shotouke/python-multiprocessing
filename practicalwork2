@@ -1,0 +1,16 @@
+__author__ = 'Xavier Domenech & Manuel Rojo'
+
+
+if __name__ == "__main__":
+
+    import py_ecc.file_ecc
+    testFile = 'tmp/testA1'      # A reasonable size file for testing.
+    prefix = 'tmp/testA1_backup' # Prefix for shares of file.
+    names = py_ecc.file_ecc.EncodeFile(testFile,prefix,8,2) # break into N= pieces
+
+    decList = map(lambda x: prefix + '.p_' + `x`,[1,2,3,4,5,6,7])
+    decodedFile = 'tmp/testA1.r' # Choose where we want reconstruction to go.
+    py_ecc.file_ecc.DecodeFiles(decList,decodedFile)
+    fd1 = open(testFile,'rb')
+    fd2 = open(decodedFile,'rb')
+    fd1.read() == fd2.read()
