@@ -1,0 +1,29 @@
+__author__ = 'Xavier Domenech & Manuel Rojo'
+
+def testA(n, k, list, prefix, decodedFile):
+    """ method to do the test for the first part of the practical work
+    here we can code the original into n pieces, and then we recover it"""
+    """file to test"""
+    testFile = 'tmp/test'
+    """break into N=8 pieces """
+    names = py_ecc.file_ecc.EncodeFile(testFile,prefix,n,k) 
+    """ list of files to decode  """
+    decList = map(lambda x: prefix + '.p_' + `x`, list) # 
+    """ decode the file """
+    py_ecc.file_ecc.DecodeFiles(decList,decodedFile) 
+    fd1 = open(testFile,'rb')
+    fd2 = open(decodedFile,'rb')
+    fd1.read() == fd2.read()
+
+
+if __name__ == "__main__":
+
+    import py_ecc.file_ecc
+
+    """First part of the practical work: Erasure Codes"""
+    """first test with erasure codes 8,2"""
+    testA(8,2,[1,2],'tmp/testA1_backup', 'tmp/testA1.r')
+    """second test with erasure codes 8,4"""
+    testA(8,4,[1,2,3,4],'tmp/testA2_backup', 'tmp/testA2.r')
+    """third test with erasure codes 8,7"""
+    testA(8,7,[1,2,3,4,5,6,7],'tmp/testA3_backup', 'tmp/testA3.r')
