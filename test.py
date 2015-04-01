@@ -97,7 +97,7 @@ def fail_workers(pool, failures):
         pool._pool[i].join()
 
     "after failing processes, we need to recover the amount of processes in the pool"
-    pool._maintain_pool()
+    #pool._maintain_pool()
 
 def test_pool_failing_workers(size, failures):
     """
@@ -137,7 +137,8 @@ def test_pool_who_i_am(size):
     p.terminate()
     p.join()
 
-def test_pool_who_i_am_uniform(size):
+
+def test_pool_who_i_am_uniform(size, data):
     """
     This test forces a uniform distribution of workload among processes.
     To do so, we implement a pool of Pools for simplicity.
@@ -145,20 +146,9 @@ def test_pool_who_i_am_uniform(size):
     print "### Running pool test for uniform distribution of workload"
     p = [multiprocessing.Pool(1) for i in range(size)]
 
-    data = range(size*2)
-    datalist = [[i] for i in range(2*size)]
-    datalist2 = [[i, i+1] for i in range(2*size)]
     "this time, we don't expect any result from the workers."
     "p.map(who_i_am, data)"
     for i, datum in enumerate(data):
-        p[i%size].apply(who_i_am, (datum,))
-
-    "p.map(who_i_am, datalist)"
-    for i, datum in enumerate(datalist):
-        p[i%size].apply(who_i_am, (datum,))
-
-    "p.map(who_i_am, datalist2)"
-    for i, datum in enumerate(datalist2):
         p[i%size].apply(who_i_am, (datum,))
 
     for pool in p:
@@ -175,9 +165,13 @@ def enable_debug():
     logger.setLevel(multiprocessing.SUBDEBUG)
 
 if __name__ == "__main__":
-    test_pool(5)
-    test_pool2(10)
-    test_pool_failing_workers(5,2)
+
+    test_pool(8)
+    test_pool2(8)
+    test_pool_failing_workers(8,2)
     test_pool_who_i_am(5)
     test_pool_who_i_am_uniform(5)
+
+
+
 
