@@ -52,6 +52,46 @@ def test_pool_who_i_am_uniform(size, data):
     print ""
 
 
+def fail_workers(pool, failures):
+    """
+    This function emulates failing nodes/processes by terminating the
+    number of "failures" processes from the "pool".
+    """
+    if failures > pool._processes:
+        raise Exception("You want to fail {} workers from a total of {}, but you can't!!".format(failures, pool._processes))
+
+    ids = random.sample(range(pool._processes), failures)
+    for i in ids:
+        "emulating a worker fails via its terminate()"
+        pool._pool[i].terminate()
+        pool._pool[i].join()
+
+    "after failing processes, we need to recover the amount of processes in the pool"
+    pool._maintain_pool()
+
+
+def choosePieces(size, recover):
+    """
+    Method to select a random stack of pieces to reconstruct
+    the original data.
+
+    size => Number of processes (number of file parts).
+    recover => Number of minimum parts to recover the original data.
+    """
+    pieces = []
+    while (len(pieces) < recover):
+        if(len(pieces)== 0):
+            pieces.append(random.randint(0, size-1))
+        posiblePiece = random.randint(0, size-1)
+        valid = True
+        for x in range(len(pieces)):
+            if (pieces[x] == posiblePiece):
+                valid = False
+        if (valid):
+            pieces.append(posiblePiece) # Random selection of pieces (Always minimum number of needed pieces)
+    return pieces
+
+
 def test_erasure_codes_elasticity(size, recover, testFile, decodedFile):
     """
     Method to do the test for the second part of the practical work
@@ -70,10 +110,7 @@ def test_erasure_codes_elasticity(size, recover, testFile, decodedFile):
 
     test_pool_who_i_am_uniform(size, names) # Assign a part of data to each process
 
-    pieces = []
-    for x in range(recover):
-        pieces.append(random.randint(0, size-1)) # Random selection of pieces (Always minimum number of needed pieces)
-    decList = map(lambda x: prefix + '.p_' + `x`,pieces) # List of files to decode
+    decList = map(lambda x: prefix + '.p_' + `x`,choosePieces(size, recover)) # List of files to decode
 
 
 
