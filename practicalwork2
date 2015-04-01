@@ -3,27 +3,14 @@ __author__ = 'Xavier Domenech & Manuel Rojo'
 import py_ecc.file_ecc
 import multiprocessing
 import random
+import os
 
 
-def test_erasure_codes( size, recover, pieces, testFile, decodedFile):
+def worker(data):
     """
-    Method to do the test for the first part of the practical work
-    here we can code the original into n pieces, and then we recover it.
-
-    size => Number of processes (number of file parts).
-    recover => Number of minimum parts to recover the original data.
-    pieces => Array of pieces to recover the original data.
-    testFile => A reasonable size file for testing.
-    decodedFile => Name of the output file after the recovery
+    This worker returns the data passed as parameter
     """
-
-    prefix = testFile + '_backup'
-    names = py_ecc.file_ecc.EncodeFile(testFile,prefix,size,recover) # Encode the file
-    decList = map(lambda x: prefix + '.p_' + `x`, pieces) # List of files to decode
-    py_ecc.file_ecc.DecodeFiles(decList,decodedFile) # Decode the file
-    fd1 = open(testFile,'rb')
-    fd2 = open(decodedFile,'rb')
-    fd1.read() == fd2.read() # Compare if original and recovered file are equals
+    return data
 
 
 def who_i_am(data):
@@ -49,6 +36,8 @@ def test_pool_who_i_am_uniform(size, data):
     for pool in p:
         pool.terminate()
         pool.join()
+
+    # p[1].
     print ""
 
 
@@ -70,13 +59,14 @@ def fail_workers(pool, failures):
     pool._maintain_pool()
 
 
-def choosePieces(size, recover):
+def choosePieces(size, recover, prefix):
     """
     Method to select a random stack of pieces to reconstruct
     the original data.
 
     size => Number of processes (number of file parts).
     recover => Number of minimum parts to recover the original data.
+    prefix => Name of the pieces to choose
     """
     pieces = []
     while (len(pieces) < recover):
@@ -89,51 +79,95 @@ def choosePieces(size, recover):
                 valid = False
         if (valid):
             pieces.append(posiblePiece) # Random selection of pieces (Always minimum number of needed pieces)
+    for i in range(len(pieces)):
+        pieces[i] = prefix + '.p_' + str(pieces[i])
     return pieces
 
 
-def test_erasure_codes_elasticity(size, recover, testFile, decodedFile):
+def test_reed_salomon(size, recover, testFile, decodedFile):
     """
-    Method to do the test for the second part of the practical work
-    here we can distribute the pieces in different processes
+    Method to do the test for the first part of the practical work
+    here we can code the original into n pieces, and then we recover it.
 
     size => Number of processes (number of file parts).
     recover => Number of minimum parts to recover the original data.
+    pieces => Array of pieces to recover the original data.
     testFile => A reasonable size file for testing.
     decodedFile => Name of the output file after the recovery
     """
-
-    print "### Running test_erasure_code_elasticity with {} processes".format(size)
+    print "### Running test_reed_salomon with {} processes".format(size)
     p = multiprocessing.Pool(size)
     prefix = testFile + '_backup'
     names = py_ecc.file_ecc.EncodeFile(testFile,prefix,size,recover)
 
     test_pool_who_i_am_uniform(size, names) # Assign a part of data to each process
 
-    decList = map(lambda x: prefix + '.p_' + `x`,choosePieces(size, recover)) # List of files to decode
-
-
+    decList = []
+    returnedData = p.map(worker, choosePieces(size, recover,prefix))
+    for i in range(recover):
+        decList.append(returnedData[i])
+    print decList
 
     py_ecc.file_ecc.DecodeFiles(decList,decodedFile) # Decode the file
 
-    """ returnedData = p.map(worker2, data)
-    for i in range(len(data)):
-        print data[i]
-        print returnedData[i]
-        print ""
-    """
     p.terminate()
     p.join()
+
+    # Study
+    fileSize = os.path.getsize(testFile) # File size
+    print 'File size: ' + str(fileSize) + 'bits'
+
+    pieceSize = os.path.getsize(prefix + '.p_' + str(0)) # Piece size
+    print 'Piece size: ' + str(pieceSize) + 'bits'
+
+
+def test_reed_salomon_elasticity(size, recover, fail, testFile, decodedFile):
+    """
+    Method to do the test for the second part of the practical work
+    here we can distribute the pieces in different processes
+
+    size => Number of processes (number of file parts).
+    recover => Number of minimum parts to recover the original data.
+    fail => Number of processes that we want fail
+    testFile => A reasonable size file for testing.
+    decodedFile => Name of the output file after the recovery
+    """
+    print "### Running test_reed_salomon_elasticity with {} processes".format(size)
+    p = multiprocessing.Pool(size)
+    prefix = testFile + '_backup'
+    names = py_ecc.file_ecc.EncodeFile(testFile,prefix,size,recover)
+
+    test_pool_who_i_am_uniform(size, names) # Assign a part of data to each process
+
+    #decList = map(lambda x: prefix + '.p_' + `x`,choosePieces(size, recover)) # List of files to decode
+
+    decList = []
+    returnedData = p.map(worker, names)
+    for i in range(len(names)):
+        decList.append(returnedData[i])
+    print decList
+
+    py_ecc.file_ecc.DecodeFiles(decList,decodedFile) # Decode the file
+
+    p.terminate()
+    p.join()
+
+    # Study
+    fileSize = os.path.getsize(testFile) # File size
+    print 'File size: ' + str(fileSize) + 'bits'
+
+    pieceSize = os.path.getsize(prefix + '.p_' + str(0)) # Piece size
+    print 'Piece size: ' + str(pieceSize) + 'bits'
 
 
 if __name__ == "__main__":
 
     # First part of the practical work: Reed Salomon for storage
 
-    test_erasure_codes(8, 2, [1,2], 'tmp/testA1', 'tmp/testA1.r') # first test with erasure codes 8,2
-    test_erasure_codes(8, 4, [1,2,3,4], 'tmp/testA2', 'tmp/testA2.r') # second test with erasure codes 8,4
-    test_erasure_codes(8, 7, [1,2,3,4,5,6,7], 'tmp/testA3', 'tmp/testA3.r') # third test with erasure codes 8,7
+    test_reed_salomon(8, 2, 'tmp/testA1', 'tmp/testA1.r') # first test with erasure codes 8,2
+    test_reed_salomon(8, 4, 'tmp/testA2', 'tmp/testA2.r') # second test with erasure codes 8,4
+    test_reed_salomon(8, 7, 'tmp/testA3', 'tmp/testA3.r') # third test with erasure codes 8,7
 
     # Second part of the practical work: Elasticity and Reed Salomon
 
-    test_erasure_codes_elasticity(8, 4, 'tmp/ls', 'tmp/ls.r')
+    test_reed_salomon_elasticity(8, 7, 0, 'tmp/ls', 'tmp/ls.r') # first test with erasure codes with elasticity
