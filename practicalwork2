@@ -1,18 +1,26 @@
 __author__ = 'Xavier Domenech & Manuel Rojo'
 
 import py_ecc.file_ecc
-import multiprocessing
-import random
 import os
+import random
+import multiprocessing
+import logging
+import array
 from os import getpid
 
 
 def worker(data):
     """
-    This worker returns the data passed as parameter
+    This worker saves the block passed as parameter
     """
+    multiprocessing.current_process().__setattr__('data',data)
     return data
 
+def worker2(data):
+    """
+    This worker returns the block
+    """
+    return multiprocessing.current_process().__getattribute__('data')
 
 def who_i_am(data):
     """
@@ -75,24 +83,34 @@ def test_reed_salomon(size, recover, testFile, decodedFile):
     decodedFile => Name of the output file after the recovery
     """
     print "### Running test_reed_salomon with {} processes".format(size)
-    p = multiprocessing.Pool(size)
+    p = [multiprocessing.Pool(1) for i in range(size)]
+    #p = multiprocessing.Pool(size)
     prefix = testFile + '_backup'
     names = py_ecc.file_ecc.EncodeFile(testFile,prefix,size,recover)
 
     #test_pool_who_i_am_uniform(size, names) # Assign a part of data to each process
 
-    print(p.map(who_i_am, names)) #We pass the names of different files to different processes
+    for i, datum in enumerate(names):
+        p[i%size].apply(who_i_am, (datum,))
+
+    for i, datum in enumerate(names):
+        p[i%size].apply(worker, (datum,))
+
 
     decList = []
-    returnedData = p.map(worker, choose_pieces(size, recover,prefix))
-    for i in range(len(returnedData)):
-        decList.append(returnedData[i])
+    recov=array.array('i',(0,)*recover)
+    for i, datum in enumerate(recov):
+        decList.append(p[i%size].apply(worker2, (datum,)))
+
     print "decList " + str(decList)
 
     py_ecc.file_ecc.DecodeFiles(decList,decodedFile) # Decode the file
 
-    p.terminate()
-    p.join()
+
+    for pool in p:
+        pool.terminate()
+        pool.join()
+
 
     # Study
     fileSize = os.path.getsize(testFile) # File size
@@ -153,10 +171,10 @@ if __name__ == "__main__":
 
     # First part of the practical work: Reed Salomon for storage
 
-    #test_reed_salomon(8, 2, 'tmp/testA1', 'tmp/testA1.r') # first test with erasure codes 8,2
-    #test_reed_salomon(8, 4, 'tmp/testA2', 'tmp/testA2.r') # second test with erasure codes 8,4
+    test_reed_salomon(8, 2, 'tmp/testA1', 'tmp/testA1.r') # first test with erasure codes 8,2
+    test_reed_salomon(8, 4, 'tmp/testA2', 'tmp/testA2.r') # second test with erasure codes 8,4
     test_reed_salomon(8, 7, 'tmp/testA3', 'tmp/testA3.r') # third test with erasure codes 8,7
 
     # Second part of the practical work: Elasticity and Reed Salomon
 
-    test_reed_salomon_elasticity(8, 7, 0, 'tmp/ls', 'tmp/ls.r') # first test with erasure codes with elasticity
+    #test_reed_salomon_elasticity(8, 7, 0, 'tmp/ls', 'tmp/ls.r') # first test with erasure codes with elasticity
