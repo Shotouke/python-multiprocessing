@@ -4,7 +4,6 @@ import py_ecc.file_ecc
 import os
 import random
 import multiprocessing
-import logging
 import array
 from os import getpid
 
@@ -16,11 +15,27 @@ def worker(data):
     multiprocessing.current_process().__setattr__('data',data)
     return data
 
+
 def worker2(data):
     """
     This worker returns the block
     """
     return multiprocessing.current_process().__getattribute__('data')
+
+
+def is_alive():
+    """
+    This worker returns if process is alive
+    """
+    return multiprocessing.current_process().is_alive()
+
+
+def name():
+    """
+    This worker returns the name of the process
+    """
+    return multiprocessing.current_process().name
+
 
 def who_i_am(data):
     """
@@ -38,37 +53,57 @@ def fail_workers(pool, failures):
         raise Exception("You want to fail {} workers from a total of {}, but you can't!!".format(failures, pool._processes))
 
     ids = random.sample(range(len(pool)), failures)
+    print "Killing processes"
     for i in ids:
         "emulating a worker fails via its terminate()"
         pool[i].terminate()
         pool[i].join()
 
-    print "processes killed"
+    print "Processes killed"
 
 
-def choose_pieces(size, recover, prefix):
+def choose_pieces(pool, size, recover):
     """
     Method to select a random stack of pieces to reconstruct
     the original data.
 
+    pool => Pool of current processes
     size => Number of processes (number of file parts).
     recover => Number of minimum parts to recover the original data.
-    prefix => Name of the pieces to choose
+    prefix => Name of the pieces to choose.
     """
+    names = []
+    alive = []
     pieces = []
-    while (len(pieces) < recover):
-        if(len(pieces)== 0):
-            pieces.append(random.randint(0, size-1))
-        posiblePiece = random.randint(0, size-1)
-        valid = True
-        for x in range(len(pieces)):
-            if (pieces[x] == posiblePiece):
-                valid = False
-        if (valid):
-            pieces.append(posiblePiece) # Random selection of pieces (Always minimum number of needed pieces)
-    for i in range(len(pieces)):
-        pieces[i] = prefix + '.p_' + str(pieces[i])
-    return pieces
+    for i in range(len(pool)):
+        names.append(pool[i%size].apply(name))
+        alive.append(pool[i%size].apply(is_alive))
+
+    print "Test =========================="
+    print names
+    print alive
+    print "End Test ======================"
+    actives = []
+    num_actives = 0
+    for i in range(size):
+        if alive[i]:
+            num_actives += 1
+            actives.append(i)
+
+    if (len(actives) >= recover):
+        while (len(pieces) < recover):
+            if(len(pieces)== 0):
+                pieces.append(random.choice(actives))
+            possiblePiece = random.choice(actives)
+            valid = True
+            for x in range(len(pieces)):
+                if (pieces[x] == possiblePiece):
+                    valid = False
+            if valid:
+                pieces.append(possiblePiece) # Random selection of pieces (Always minimum number of needed pieces)
+        return pieces
+    else:
+        return "Null"
 
 
 def test_reed_salomon(size, recover, testFile, decodedFile):
@@ -84,31 +119,28 @@ def test_reed_salomon(size, recover, testFile, decodedFile):
     print "### Running test_reed_salomon with {} processes".format(size)
     p = [multiprocessing.Pool(1) for i in range(size)]
     prefix = testFile + '_backup'
-    names = py_ecc.file_ecc.EncodeFile(testFile,prefix,size,recover)
+    names = py_ecc.file_ecc.EncodeFile(testFile,prefix,size,recover) # Save the piece's name
 
-    #test_pool_who_i_am_uniform(size, names) # Assign a part of data to each process
-
-    for i, datum in enumerate(names):
+    for i, datum in enumerate(names): # Show the process and the piece
         p[i%size].apply(who_i_am, (datum,))
 
-    for i, datum in enumerate(names):
+    for i, datum in enumerate(names): # Save the process and the piece
         p[i%size].apply(worker, (datum,))
 
-
     decList = []
-    recov=array.array('i',(0,)*(recover))
-    for i, datum in enumerate(recov):
-        decList.append(p[i%size].apply(worker2, (datum,)))
+    recov = array.array('i',(0,)*recover)
+    pieces = choose_pieces(p, size, recover)
+
+    for i, datum in enumerate(recov): # Save the pieces to recover for decode the file
+        decList.append(p[pieces[i]%size].apply(worker2, (datum,)))
 
     print "decList " + str(decList)
 
     py_ecc.file_ecc.DecodeFiles(decList,decodedFile) # Decode the file
 
-
     for pool in p:
         pool.terminate()
         pool.join()
-
 
     # Study
     fileSize = os.path.getsize(testFile) # File size
@@ -131,11 +163,8 @@ def test_reed_salomon_elasticity(size, recover, fail, testFile, decodedFile):
     """
     print "### Running test_reed_salomon_elasticity with {} processes".format(size)
     p = [multiprocessing.Pool(1) for i in range(size)]
-    #p = multiprocessing.Pool(size)
     prefix = testFile + '_backup'
     names = py_ecc.file_ecc.EncodeFile(testFile,prefix,size,recover)
-
-    #test_pool_who_i_am_uniform(size, names) # Assign a part of data to each process
 
     for i, datum in enumerate(names):
         p[i%size].apply(who_i_am, (datum,))
@@ -143,21 +172,20 @@ def test_reed_salomon_elasticity(size, recover, fail, testFile, decodedFile):
     for i, datum in enumerate(names):
         p[i%size].apply(worker, (datum,))
 
-    fail_workers(p, fail)
+    #fail_workers(p, fail)
+    recov = array.array('i',(0,)*recover)
+    pieces = choose_pieces(p, size, recover)
 
-    decList = []
-    i=0
-    nrecover=0
-    while nrecover<recover:
-        if p[i%size]._pool[0].is_alive():
-            decList.append(p[i%size].apply(worker2, (datum,)))
-            nrecover=nrecover+1
-        i=i+1
+    if pieces != "Null":
+        decList = []
+        for i, datum in enumerate(recov): # Save the pieces to recover for decode the file
+            decList.append(p[pieces[i]%size].apply(worker2, (datum,)))
 
-    print "decList " + str(decList)
+        print "decList " + str(decList)
 
-    py_ecc.file_ecc.DecodeFiles(decList,decodedFile) # Decode the file
-
+        py_ecc.file_ecc.DecodeFiles(decList,decodedFile) # Decode the file
+    else:
+        print "It's not possible decode data to recover the original file"
 
     for pool in p:
         pool.terminate()
@@ -171,15 +199,14 @@ def test_reed_salomon_elasticity(size, recover, fail, testFile, decodedFile):
     print 'Piece size: ' + str(pieceSize) + 'bits'
 
 
-
 if __name__ == "__main__":
 
     # First part of the practical work: Reed Salomon for storage
 
-    test_reed_salomon(8, 2, 'tmp/testA1', 'tmp/testA1.r') # first test with erasure codes 8,2
-    test_reed_salomon(8, 4, 'tmp/testA2', 'tmp/testA2.r') # second test with erasure codes 8,4
-    test_reed_salomon(8, 7, 'tmp/testA3', 'tmp/testA3.r') # third test with erasure codes 8,7
+    #test_reed_salomon(8, 2, 'tmp/testA1', 'tmp/testA1.r') # first test with erasure codes 8,2
+    #test_reed_salomon(8, 4, 'tmp/testA2', 'tmp/testA2.r') # second test with erasure codes 8,4
+    #test_reed_salomon(8, 7, 'tmp/testA3', 'tmp/testA3.r') # third test with erasure codes 8,7
 
     # Second part of the practical work: Elasticity and Reed Salomon
 
-    test_reed_salomon_elasticity(8, 7, 1, 'tmp/testB', 'tmp/testB.r') # first test with erasure codes with elasticity
+    test_reed_salomon_elasticity(8, 7, 3, 'tmp/ls', 'tmp/ls.r') # first test with erasure codes with elasticity
