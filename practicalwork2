@@ -76,8 +76,10 @@ def choose_pieces(pool, size, recover):
     alive = []
     pieces = []
     for i in range(len(pool)):
-        names.append(pool[i%size].apply(name))
-        alive.append(pool[i%size].apply(is_alive))
+        print "State: " + str(pool[i]._state)
+        if pool[i]._state != 2:
+            names.append(pool[i%size].apply(name))
+            alive.append(pool[i%size].apply(is_alive))
 
     print "Test =========================="
     print names
@@ -85,7 +87,7 @@ def choose_pieces(pool, size, recover):
     print "End Test ======================"
     actives = []
     num_actives = 0
-    for i in range(size):
+    for i in range(len(alive)):
         if alive[i]:
             num_actives += 1
             actives.append(i)
@@ -172,7 +174,7 @@ def test_reed_salomon_elasticity(size, recover, fail, testFile, decodedFile):
     for i, datum in enumerate(names):
         p[i%size].apply(worker, (datum,))
 
-    #fail_workers(p, fail)
+    fail_workers(p, fail)
     recov = array.array('i',(0,)*recover)
     pieces = choose_pieces(p, size, recover)
 
@@ -209,4 +211,4 @@ if __name__ == "__main__":
 
     # Second part of the practical work: Elasticity and Reed Salomon
 
-    test_reed_salomon_elasticity(8, 7, 3, 'tmp/ls', 'tmp/ls.r') # first test with erasure codes with elasticity
+    test_reed_salomon_elasticity(8, 4, 2, 'tmp/ls', 'tmp/ls.r') # first test with erasure codes with elasticity
