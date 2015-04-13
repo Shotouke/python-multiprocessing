@@ -75,22 +75,21 @@ def choose_pieces(pool, size, recover):
     names = []
     alive = []
     pieces = []
+    num_actives =0
+    actives=[]
     for i in range(len(pool)):
         print "State: " + str(pool[i]._state)
         if pool[i]._state != 2:
             names.append(pool[i%size].apply(name))
             alive.append(pool[i%size].apply(is_alive))
+            actives.append(i)
+            num_actives += 1
 
     print "Test =========================="
     print names
     print alive
     print "End Test ======================"
-    actives = []
-    num_actives = 0
-    for i in range(len(alive)):
-        if alive[i]:
-            num_actives += 1
-            actives.append(i)
+
 
     if (len(actives) >= recover):
         while (len(pieces) < recover):
@@ -211,4 +210,4 @@ if __name__ == "__main__":
 
     # Second part of the practical work: Elasticity and Reed Salomon
 
-    test_reed_salomon_elasticity(8, 4, 2, 'tmp/ls', 'tmp/ls.r') # first test with erasure codes with elasticity
+    test_reed_salomon_elasticity(8, 4, 2, 'tmp/testB', 'tmp/testB.r') # first test with erasure codes with elasticity
