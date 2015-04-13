@@ -34,17 +34,16 @@ def fail_workers(pool, failures):
     This function emulates failing nodes/processes by terminating the
     number of "failures" processes from the "pool".
     """
-    if failures > pool._processes:
+    if failures > len(pool):
         raise Exception("You want to fail {} workers from a total of {}, but you can't!!".format(failures, pool._processes))
 
-    ids = random.sample(range(pool._processes), failures)
+    ids = random.sample(range(len(pool)), failures)
     for i in ids:
         "emulating a worker fails via its terminate()"
-        pool._pool[i].terminate()
-        pool._pool[i].join()
+        pool[i].terminate()
+        pool[i].join()
 
-    "after failing processes, we need to recover the amount of processes in the pool"
-    pool._maintain_pool()
+    print "processes killed"
 
 
 def choose_pieces(size, recover, prefix):
@@ -84,7 +83,6 @@ def test_reed_salomon(size, recover, testFile, decodedFile):
     """
     print "### Running test_reed_salomon with {} processes".format(size)
     p = [multiprocessing.Pool(1) for i in range(size)]
-    #p = multiprocessing.Pool(size)
     prefix = testFile + '_backup'
     names = py_ecc.file_ecc.EncodeFile(testFile,prefix,size,recover)
 
@@ -98,7 +96,7 @@ def test_reed_salomon(size, recover, testFile, decodedFile):
 
 
     decList = []
-    recov=array.array('i',(0,)*recover)
+    recov=array.array('i',(0,)*(recover))
     for i, datum in enumerate(recov):
         decList.append(p[i%size].apply(worker2, (datum,)))
 
@@ -132,32 +130,38 @@ def test_reed_salomon_elasticity(size, recover, fail, testFile, decodedFile):
     decodedFile => Name of the output file after the recovery
     """
     print "### Running test_reed_salomon_elasticity with {} processes".format(size)
-    p = multiprocessing.Pool(size)
+    p = [multiprocessing.Pool(1) for i in range(size)]
+    #p = multiprocessing.Pool(size)
     prefix = testFile + '_backup'
     names = py_ecc.file_ecc.EncodeFile(testFile,prefix,size,recover)
 
-    files = []  # Here we read the content of the files and save it in a new table call files
-    for i in range(len(names)):
-        with open(names[i], 'r') as file:
-            files.append(file.read())
-        file.close()
-                # End of read files
+    #test_pool_who_i_am_uniform(size, names) # Assign a part of data to each process
+
+    for i, datum in enumerate(names):
+        p[i%size].apply(who_i_am, (datum,))
+
+    for i, datum in enumerate(names):
+        p[i%size].apply(worker, (datum,))
+
+    fail_workers(p, fail)
 
     decList = []
-    p.map(worker, files)    # We pass the read files to different processes
-    print "Process: " + str(p._processes)
-    #returnedData = p.map(worker, files)
-    """returnedData = []
-    for i in range(len(names)):
-        decList.append(returnedData[i])
-    print decList"""
+    i=0
+    nrecover=0
+    while nrecover<recover:
+        if p[i%size]._pool[0].is_alive():
+            decList.append(p[i%size].apply(worker2, (datum,)))
+            nrecover=nrecover+1
+        i=i+1
+
+    print "decList " + str(decList)
+
+    py_ecc.file_ecc.DecodeFiles(decList,decodedFile) # Decode the file
 
 
-
-    #py_ecc.file_ecc.DecodeFiles(decList,decodedFile) # Decode the file
-
-    p.terminate()
-    p.join()
+    for pool in p:
+        pool.terminate()
+        pool.join()
 
     # Study
     fileSize = os.path.getsize(testFile) # File size
@@ -165,6 +169,7 @@ def test_reed_salomon_elasticity(size, recover, fail, testFile, decodedFile):
 
     pieceSize = os.path.getsize(prefix + '.p_' + str(0)) # Piece size
     print 'Piece size: ' + str(pieceSize) + 'bits'
+
 
 
 if __name__ == "__main__":
@@ -177,4 +182,4 @@ if __name__ == "__main__":
 
     # Second part of the practical work: Elasticity and Reed Salomon
 
-    #test_reed_salomon_elasticity(8, 7, 0, 'tmp/ls', 'tmp/ls.r') # first test with erasure codes with elasticity
+    test_reed_salomon_elasticity(8, 7, 1, 'tmp/testB', 'tmp/testB.r') # first test with erasure codes with elasticity
