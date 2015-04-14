@@ -98,23 +98,42 @@ def choose_pieces(pool, size, recover):
     else:
         return "Null"
 
-def study(size, testFile, prefix):
+def study(size, pool, testFile, pieces,  prefix):
     """
     Method to calculate all the storage costs
 
     size => Number of processes (number of file parts).
+    pool => Pool of processes used
     testFile => A reasonable size file for testing.
+    pieces => List of choose pieces
     prefix => Name of the pieces to choose.
     """
     print "========== ANALYSIS =========="
     fileSize = os.path.getsize(testFile) # File size
     pieceSize = os.path.getsize(prefix + '.p_' + str(0)) # Piece size
 
-    print "Storage cost ratio: " + str((pieceSize*size)/fileSize) + "x"
-    print "Additional storage cost ratio: " + str((pieceSize*size)/fileSize-1) + "x"
-    print "Collaboration ratio per process: "
-    print "Total collaboration ratio: "
-    print "Correcting bits ratio: "
+    collaboration = []
+    recived = []
+    for i in range (size):
+        recived.append(1)
+        collaboration.append(0)
+
+    total_collaboration = 0
+    for i in range (len(pieces)):
+        collaboration[pieces[i]] = 1
+        total_collaboration += 1
+
+    names = []
+    for i in range(len(pool)):
+        if pool[i]._state != 2:
+            names.append(pool[i%size].apply(name))
+
+    print "Storage cost ratio: " + str(float(pieceSize*size)/fileSize) + "x"
+    print "Additional storage cost ratio: " + str(float(pieceSize*size)/fileSize-1) + "x"
+    for i in range(len(pieces)):
+        print "Collaboration ratio per process " + str(names[i]) + " => " + str(collaboration[pieces[i]]) + ":" + str(recived[pieces[i]]) + " => " + str(collaboration[pieces[i]]/recived[pieces[i]])
+    print "Total collaboration ratio => " + str(total_collaboration)
+    print "Correcting bits ratio: " + str(float(pieceSize*size)/fileSize-1) + "x"
     print "=============================="
 
 
@@ -155,13 +174,13 @@ def test_reed_salomon_elasticity(size, recover, fail, testFile, decodedFile):
     else:
         print "It's not possible decode data to recover the original file"
 
+    # Study
+    if pieces != "Null":
+        study(size, p, testFile, pieces, prefix)
+
     for pool in p:
         pool.terminate()
         pool.join()
-
-    # Study
-    if pieces != "Null":
-        study(size, testFile, prefix)
 
 
 if __name__ == "__main__":
