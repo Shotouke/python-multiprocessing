@@ -53,13 +53,13 @@ def fail_workers(pool, failures):
         raise Exception("You want to fail {} workers from a total of {}, but you can't!!".format(failures, pool._processes))
 
     ids = random.sample(range(len(pool)), failures)
-    print "Killing processes"
+    num = 0
     for i in ids:
         "emulating a worker fails via its terminate()"
         pool[i].terminate()
         pool[i].join()
-
-    print "Processes killed"
+        num += 1
+    print str(num) + " processes killed"
 
 
 def choose_pieces(pool, size, recover):
@@ -70,26 +70,18 @@ def choose_pieces(pool, size, recover):
     pool => Pool of current processes
     size => Number of processes (number of file parts).
     recover => Number of minimum parts to recover the original data.
-    prefix => Name of the pieces to choose.
     """
     names = []
     alive = []
     pieces = []
-    num_actives =0
-    actives=[]
+    num_actives = 0
+    actives = []
     for i in range(len(pool)):
-        print "State: " + str(pool[i]._state)
         if pool[i]._state != 2:
             names.append(pool[i%size].apply(name))
             alive.append(pool[i%size].apply(is_alive))
             actives.append(i)
             num_actives += 1
-
-    print "Test =========================="
-    print names
-    print alive
-    print "End Test ======================"
-
 
     if (len(actives) >= recover):
         while (len(pieces) < recover):
@@ -106,55 +98,32 @@ def choose_pieces(pool, size, recover):
     else:
         return "Null"
 
-
-def test_reed_salomon(size, recover, testFile, decodedFile):
+def study(size, testFile, prefix):
     """
-    Method to do the test for the first part of the practical work
-    here we can code the original into n pieces, and then we recover it.
+    Method to calculate all the storage costs
 
     size => Number of processes (number of file parts).
-    recover => Number of minimum parts to recover the original data.
     testFile => A reasonable size file for testing.
-    decodedFile => Name of the output file after the recovery
+    prefix => Name of the pieces to choose.
     """
-    print "### Running test_reed_salomon with {} processes".format(size)
-    p = [multiprocessing.Pool(1) for i in range(size)]
-    prefix = testFile + '_backup'
-    names = py_ecc.file_ecc.EncodeFile(testFile,prefix,size,recover) # Save the piece's name
-
-    for i, datum in enumerate(names): # Show the process and the piece
-        p[i%size].apply(who_i_am, (datum,))
-
-    for i, datum in enumerate(names): # Save the process and the piece
-        p[i%size].apply(worker, (datum,))
-
-    decList = []
-    recov = array.array('i',(0,)*recover)
-    pieces = choose_pieces(p, size, recover)
-
-    for i, datum in enumerate(recov): # Save the pieces to recover for decode the file
-        decList.append(p[pieces[i]%size].apply(worker2, (datum,)))
-
-    print "decList " + str(decList)
-
-    py_ecc.file_ecc.DecodeFiles(decList,decodedFile) # Decode the file
-
-    for pool in p:
-        pool.terminate()
-        pool.join()
-
-    # Study
+    print "========== ANALYSIS =========="
     fileSize = os.path.getsize(testFile) # File size
-    print 'File size: ' + str(fileSize) + 'bits'
-
     pieceSize = os.path.getsize(prefix + '.p_' + str(0)) # Piece size
-    print 'Piece size: ' + str(pieceSize) + 'bits'
+
+    print "Storage cost ratio: " + str((pieceSize*size)/fileSize) + "x"
+    print "Additional storage cost ratio: " + str((pieceSize*size)/fileSize-1) + "x"
+    print "Collaboration ratio per process: "
+    print "Total collaboration ratio: "
+    print "Correcting bits ratio: "
+    print "=============================="
 
 
 def test_reed_salomon_elasticity(size, recover, fail, testFile, decodedFile):
     """
-    Method to do the test for the second part of the practical work
-    here we can distribute the pieces in different processes
+    Method to do the test for the practical work.
+    First practice part => fail = 0
+    Second practice part => fail = number of fail processes
+    Distribute the pieces in different processes.
 
     size => Number of processes (number of file parts).
     recover => Number of minimum parts to recover the original data.
@@ -162,7 +131,7 @@ def test_reed_salomon_elasticity(size, recover, fail, testFile, decodedFile):
     testFile => A reasonable size file for testing.
     decodedFile => Name of the output file after the recovery
     """
-    print "### Running test_reed_salomon_elasticity with {} processes".format(size)
+    print "### Running test_reed_salomon_elasticity with {} processes, {} processes to recover and {} processes failed".format(size, recover, fail)
     p = [multiprocessing.Pool(1) for i in range(size)]
     prefix = testFile + '_backup'
     names = py_ecc.file_ecc.EncodeFile(testFile,prefix,size,recover)
@@ -182,8 +151,6 @@ def test_reed_salomon_elasticity(size, recover, fail, testFile, decodedFile):
         for i, datum in enumerate(recov): # Save the pieces to recover for decode the file
             decList.append(p[pieces[i]%size].apply(worker2, (datum,)))
 
-        print "decList " + str(decList)
-
         py_ecc.file_ecc.DecodeFiles(decList,decodedFile) # Decode the file
     else:
         print "It's not possible decode data to recover the original file"
@@ -193,21 +160,37 @@ def test_reed_salomon_elasticity(size, recover, fail, testFile, decodedFile):
         pool.join()
 
     # Study
-    fileSize = os.path.getsize(testFile) # File size
-    print 'File size: ' + str(fileSize) + 'bits'
-
-    pieceSize = os.path.getsize(prefix + '.p_' + str(0)) # Piece size
-    print 'Piece size: ' + str(pieceSize) + 'bits'
+    if pieces != "Null":
+        study(size, testFile, prefix)
 
 
 if __name__ == "__main__":
 
-    # First part of the practical work: Reed Salomon for storage
+    # First part of the practical work: Reed Salomon for storage (No fails)
 
-    #test_reed_salomon(8, 2, 'tmp/testA1', 'tmp/testA1.r') # first test with erasure codes 8,2
-    #test_reed_salomon(8, 4, 'tmp/testA2', 'tmp/testA2.r') # second test with erasure codes 8,4
-    #test_reed_salomon(8, 7, 'tmp/testA3', 'tmp/testA3.r') # third test with erasure codes 8,7
+    test_reed_salomon_elasticity(8, 7, 0, 'tmp/testA1', 'tmp/testA1.r') # first test with erasure codes 8,7
+    test_reed_salomon_elasticity(8, 4, 0, 'tmp/testA2', 'tmp/testA2.r') # second test with erasure codes 8,4
+    test_reed_salomon_elasticity(8, 2, 0, 'tmp/testA3', 'tmp/testA3.r') # third test with erasure codes 8,2
 
-    # Second part of the practical work: Elasticity and Reed Salomon
+    # Second part of the practical work: Elasticity and Reed Salomon (Fails)
 
-    test_reed_salomon_elasticity(8, 4, 2, 'tmp/testB', 'tmp/testB.r') # first test with erasure codes with elasticity
+    # Erasure code (8,7)
+    test_reed_salomon_elasticity(8, 7, 1, 'tmp/testB1', 'tmp/testB1.r') # first test with erasure codes with elasticity
+    test_reed_salomon_elasticity(8, 7, 2, 'tmp/testB1', 'tmp/testB1.r') # first test with erasure codes with elasticity
+    test_reed_salomon_elasticity(8, 7, 3, 'tmp/testB1', 'tmp/testB1.r') # first test with erasure codes with elasticity
+    test_reed_salomon_elasticity(8, 7, 4, 'tmp/testB1', 'tmp/testB1.r') # first test with erasure codes with elasticity
+    test_reed_salomon_elasticity(8, 7, 5, 'tmp/testB1', 'tmp/testB1.r') # first test with erasure codes with elasticity
+
+    # Erasure code (8,4)
+    test_reed_salomon_elasticity(8, 4, 1, 'tmp/testB2', 'tmp/testB2.r') # second test with erasure codes with elasticity
+    test_reed_salomon_elasticity(8, 4, 2, 'tmp/testB2', 'tmp/testB2.r') # second test with erasure codes with elasticity
+    test_reed_salomon_elasticity(8, 4, 3, 'tmp/testB2', 'tmp/testB2.r') # second test with erasure codes with elasticity
+    test_reed_salomon_elasticity(8, 4, 4, 'tmp/testB2', 'tmp/testB2.r') # second test with erasure codes with elasticity
+    test_reed_salomon_elasticity(8, 4, 5, 'tmp/testB2', 'tmp/testB2.r') # second test with erasure codes with elasticity
+
+    # Erasure code (8,2)
+    test_reed_salomon_elasticity(8, 2, 1, 'tmp/testB3', 'tmp/testB3.r') # third test with erasure codes with elasticity
+    test_reed_salomon_elasticity(8, 2, 2, 'tmp/testB3', 'tmp/testB3.r') # third test with erasure codes with elasticity
+    test_reed_salomon_elasticity(8, 2, 3, 'tmp/testB3', 'tmp/testB3.r') # third test with erasure codes with elasticity
+    test_reed_salomon_elasticity(8, 2, 4, 'tmp/testB3', 'tmp/testB3.r') # third test with erasure codes with elasticity
+    test_reed_salomon_elasticity(8, 2, 5, 'tmp/testB3', 'tmp/testB3.r') # third test with erasure codes with elasticity
