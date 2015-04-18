@@ -23,25 +23,12 @@ def worker2(data):
     return multiprocessing.current_process().__getattribute__('data')
 
 
-def is_alive():
-    """
-    This worker returns if process is alive
-    """
-    return multiprocessing.current_process().is_alive()
-
-
-def name():
-    """
-    This worker returns the name of the process
-    """
-    return multiprocessing.current_process().name
-
-
 def who_i_am(data):
     """
     The job of this worker is simply tell who it is ;-)
     """
     print "Hi! I'm {} and process {}. I'm processing {}!".format(multiprocessing.current_process().name, getpid(), data)
+    return multiprocessing.current_process().name
 
 
 def fail_workers(pool, failures):
@@ -71,39 +58,26 @@ def choose_pieces(pool, size, recover):
     size => Number of processes (number of file parts).
     recover => Number of minimum parts to recover the original data.
     """
-    names = []
-    alive = []
     pieces = []
-    num_actives = 0
     actives = []
     for i in range(len(pool)):
         if pool[i]._state != 2:
-            names.append(pool[i%size].apply(name))
-            alive.append(pool[i%size].apply(is_alive))
             actives.append(i)
-            num_actives += 1
 
-    if (len(actives) >= recover):
-        while (len(pieces) < recover):
-            if(len(pieces)== 0):
-                pieces.append(random.choice(actives))
-            possiblePiece = random.choice(actives)
-            valid = True
-            for x in range(len(pieces)):
-                if (pieces[x] == possiblePiece):
-                    valid = False
-            if valid:
-                pieces.append(possiblePiece) # Random selection of pieces (Always minimum number of needed pieces)
+    try:
+        pieces.append(random.sample(actives,recover))
         return pieces
-    else:
-        return "Null"
+    except:
+        return None
 
-def study(size, pool, testFile, pieces,  prefix):
+
+def study(size, pool, pool_worker, testFile, pieces,  prefix):
     """
     Method to calculate all the storage costs
 
     size => Number of processes (number of file parts).
     pool => Pool of processes used
+    pool_worker => Name of all the initial pool_workers
     testFile => A reasonable size file for testing.
     pieces => List of choose pieces
     prefix => Name of the pieces to choose.
@@ -119,19 +93,14 @@ def study(size, pool, testFile, pieces,  prefix):
         collaboration.append(0)
 
     total_collaboration = 0
-    for i in range (len(pieces)):
-        collaboration[pieces[i]] = 1
+    for i in range (len(pieces[0])):
+        collaboration[pieces[0][i]] = 1
         total_collaboration += 1
-
-    names = []
-    for i in range(len(pool)):
-        if pool[i]._state != 2:
-            names.append(pool[i%size].apply(name))
 
     print "Storage cost ratio: " + str(float(pieceSize*size)/fileSize) + "x"
     print "Additional storage cost ratio: " + str(float(pieceSize*size)/fileSize-1) + "x"
-    for i in range(len(pieces)):
-        print "Collaboration ratio per process " + str(names[i]) + " => " + str(collaboration[pieces[i]]) + ":" + str(recived[pieces[i]]) + " => " + str(collaboration[pieces[i]]/recived[pieces[i]])
+    for i in range(size):
+        print "Collaboration ratio per process " + str(pool_worker[i]) + " => " + str(collaboration[i]) + ":" + str(recived[i]) + " => " + str(collaboration[i]/recived[i])
     print "Total collaboration ratio => " + str(total_collaboration)
     print "Correcting bits ratio: " + str(float(pieceSize*size)/fileSize-1) + "x"
     print "=============================="
@@ -154,9 +123,10 @@ def test_reed_salomon_elasticity(size, recover, fail, testFile, decodedFile):
     p = [multiprocessing.Pool(1) for i in range(size)]
     prefix = testFile + '_backup'
     names = py_ecc.file_ecc.EncodeFile(testFile,prefix,size,recover)
+    pool_worker = []
 
     for i, datum in enumerate(names):
-        p[i%size].apply(who_i_am, (datum,))
+       pool_worker.append(p[i%size].apply(who_i_am, (datum,)))
 
     for i, datum in enumerate(names):
         p[i%size].apply(worker, (datum,))
@@ -165,18 +135,16 @@ def test_reed_salomon_elasticity(size, recover, fail, testFile, decodedFile):
     recov = array.array('i',(0,)*recover)
     pieces = choose_pieces(p, size, recover)
 
-    if pieces != "Null":
+    try:
         decList = []
         for i, datum in enumerate(recov): # Save the pieces to recover for decode the file
-            decList.append(p[pieces[i]%size].apply(worker2, (datum,)))
+            decList.append(p[pieces[0][i]%size].apply(worker2, (datum,)))
 
         py_ecc.file_ecc.DecodeFiles(decList,decodedFile) # Decode the file
-    else:
-        print "It's not possible decode data to recover the original file"
+        study(size, p, pool_worker, testFile, pieces, prefix) # Study
 
-    # Study
-    if pieces != "Null":
-        study(size, p, testFile, pieces, prefix)
+    except:
+        print "It's not possible decode data to recover the original file"
 
     for pool in p:
         pool.terminate()
