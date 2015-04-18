@@ -68,7 +68,7 @@ def choose_pieces(pool, size, recover):
         pieces.append(random.sample(actives,recover))
         return pieces
     except:
-        return None
+        return "Not enough pieces"
 
 
 def study(size, pool, pool_worker, testFile, pieces,  prefix):
