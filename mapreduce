@@ -25,8 +25,6 @@ def randomTest(size):
     p.join()
 
 
-filename = 'file/logs.txt'
-
 def num_lines_file(filename, num_processes):
     """
     :param filename: Name of the file to count
@@ -38,20 +36,37 @@ def num_lines_file(filename, num_processes):
     num_lines = sum(1 for line in open(filename)) # Count number of lines in the file
 
     rest = num_lines % num_processes
-    
+
     for i in range(0, num_processes):
         if i == num_processes - 1:
             lines_process.append(int(num_lines / num_processes) + rest)
         else:
             lines_process.append(int(num_lines / num_processes))
+    print lines_process
     return lines_process
 
-print num_lines_file(filename, 4)
 
-file = open(filename, 'rb')
-line= file.readline()
-a=string.split(line, '	')
-print a[0]
-print a[3]
-ip=a[0]
-month=a[4]
+def chunks(filename, num_processes):
+    """
+    :param filename: Name of the file to count
+    :param num_processes: Number of processes to do the map/reduce
+    :return: A matrix [][] with the lines to process for each process
+    """
+    chunk = []
+    chunks = []
+    file = open(filename, 'rb')
+    for lines in num_lines_file(filename, num_processes):
+        chunk = []
+        for each_line in range(0, lines):
+            chunk.append(file.readline())
+        chunks.append(chunk)
+    return chunks
+
+
+def map_reduce():
+    return None
+
+
+if __name__ == "__main__":
+    chunks('file/logs.txt', 4)
+    map_reduce()
