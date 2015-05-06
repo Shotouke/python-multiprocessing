@@ -1,12 +1,16 @@
-__author__ = 'Xavi Manu'
+__author__ = 'Xavi Domenech & Manuel Rojo'
+
 import string
 import multiprocessing
+
 
 def Map(L):
     return None
 
+
 def Reduce(Mapping):
     return None
+
 
 def uniformTest(size):
     p = [multiprocessing.Pool(1) for i in range(size)]
@@ -21,7 +25,30 @@ def randomTest(size):
     p.join()
 
 
-file = open('logs.txt','rb')
+filename = 'file/logs.txt'
+
+def num_lines_file(filename, num_processes):
+    """
+    :param filename: Name of the file to count
+    :param num_processes: Number of processes to do the map/reduce
+    :return: Number of lines to process for each process
+    """
+    lines_process = []
+
+    num_lines = sum(1 for line in open(filename)) # Count number of lines in the file
+
+    rest = num_lines % num_processes
+    
+    for i in range(0, num_processes):
+        if i == num_processes - 1:
+            lines_process.append(int(num_lines / num_processes) + rest)
+        else:
+            lines_process.append(int(num_lines / num_processes))
+    return lines_process
+
+print num_lines_file(filename, 4)
+
+file = open(filename, 'rb')
 line= file.readline()
 a=string.split(line, '	')
 print a[0]
