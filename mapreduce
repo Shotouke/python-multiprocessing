@@ -5,6 +5,20 @@ import multiprocessing
 
 
 def Map(L):
+    print multiprocessing.current_process().name
+    ip =[]
+    month= []
+    year= []
+    for i, datum in enumerate(L):
+        a=string.split(datum, '	')
+        ip.append((a[0],1))
+        month.append((a[4],1))
+        year.append((a[5],1))
+
+    multiprocessing.current_process().__setattr__('ip',ip)
+    multiprocessing.current_process().__setattr__('month',month)
+    multiprocessing.current_process().__setattr__('year',year)
+
     return None
 
 
@@ -68,5 +82,7 @@ def map_reduce():
 
 
 if __name__ == "__main__":
-    chunks('file/logs.txt', 4)
-    map_reduce()
+    pieces=chunks('logs.txt', 4)
+    p = [multiprocessing.Pool(1) for i in range(4)]
+    for i, datum in enumerate(pieces): # Show the process and the piece
+        p[i%4].map(Map, (datum,))
