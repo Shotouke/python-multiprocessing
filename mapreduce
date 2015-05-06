@@ -1,0 +1,30 @@
+__author__ = 'Xavi Manu'
+import string
+import multiprocessing
+
+def Map(L):
+    return None
+
+def Reduce(Mapping):
+    return None
+
+def uniformTest(size):
+    p = [multiprocessing.Pool(1) for i in range(size)]
+    for pool in p:
+        pool.terminate()
+        pool.join()
+
+
+def randomTest(size):
+    p = multiprocessing.Pool(size)
+    p.terminate()
+    p.join()
+
+
+file = open('logs.txt','rb')
+line= file.readline()
+a=string.split(line, '	')
+print a[0]
+print a[3]
+ip=a[0]
+month=a[4]
