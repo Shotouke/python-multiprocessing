@@ -14,12 +14,13 @@ def Map(L):
         if result.has_key(key)==False:
             result[key]=[]
         result[key].append(1)
-    print result
+    #print result
     return result
 
 
 def Reduce(Mapping):
-    return None
+
+    return  sum( Mapping)
 
 
 def uniformTest(size):
@@ -75,10 +76,33 @@ def chunks(filename, num_processes):
 def map_reduce():
     return None
 
+def Partition(mapping):
+    newDict={}
+    for i in mapping:
+        dict=i[0]
+        for key in iter(dict):
+            if newDict.has_key(key)==False:
+                newDict[key]=dict[key]
+            else:
+                newDict[key].extend(dict[key])
+    return newDict
+
+
+
+
 
 if __name__ == "__main__":
-    pieces=chunks('logs.txt', 1)
-    p = [multiprocessing.Pool(1) for i in range(1)]
+    pieces=chunks('logs.txt', 4)
+    p = [multiprocessing.Pool(1) for i in range(4)]
     mapping=[]
     for i, datum in enumerate(pieces): # Show the process and the piece
-        p[i%4].map(Map, (datum,))
+        mapping.append( p[i%4].map(Map, (datum,)))
+    mapping=Partition(mapping)
+
+    newMapping={}
+    for key in iter(mapping): # Show the process and the piece
+        newMapping[key]= p[i%4].apply(Reduce, [mapping[key]])
+        print key
+        print newMapping[key]
+        print '\n'
+
