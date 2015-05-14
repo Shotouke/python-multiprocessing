@@ -2,6 +2,7 @@ __author__ = 'Xavi Domenech & Manuel Rojo'
 
 import string
 import multiprocessing
+import time
 
 
 def Map(L):
@@ -9,72 +10,12 @@ def Map(L):
     result = {}
     for i, datum in enumerate(L):
         a=string.split(datum, '	')
-        #key=(ip,month,year)
         key=(a[0],a[3],a[5]);
         if result.has_key(key)==False:
             result[key]=[]
         result[key].append(1)
-    #print result
     return result
 
-
-def Reduce(Mapping):
-
-    return  sum( Mapping)
-
-
-def uniformTest(size):
-    p = [multiprocessing.Pool(1) for i in range(size)]
-    for pool in p:
-        pool.terminate()
-        pool.join()
-
-
-def randomTest(size):
-    p = multiprocessing.Pool(size)
-    p.terminate()
-    p.join()
-
-
-def num_lines_file(filename, num_processes):
-    """
-    :param filename: Name of the file to count
-    :param num_processes: Number of processes to do the map/reduce
-    :return: Number of lines to process for each process
-    """
-    lines_process = []
-
-    num_lines = sum(1 for line in open(filename)) # Count number of lines in the file
-
-    rest = num_lines % num_processes
-
-    for i in range(0, num_processes):
-        if i == num_processes - 1:
-            lines_process.append(int(num_lines / num_processes) + rest)
-        else:
-            lines_process.append(int(num_lines / num_processes))
-    print lines_process
-    return lines_process
-
-
-def chunks(filename, num_processes):
-    """
-    :param filename: Name of the file to count
-    :param num_processes: Number of processes to do the map/reduce
-    :return: A matrix [][] with the lines to process for each process
-    """
-    chunks = []
-    file = open(filename, 'rb')
-    for lines in num_lines_file(filename, num_processes):
-        chunk = []
-        for each_line in range(0, lines):
-            chunk.append(file.readline())
-        chunks.append(chunk)
-    return chunks
-
-
-def map_reduce():
-    return None
 
 def Partition(mapping):
     newDict={}
@@ -88,21 +29,117 @@ def Partition(mapping):
     return newDict
 
 
+def Reduce(Mapping):
+    return  sum( Mapping)
 
 
+def num_lines_file(filename, num_processes):
+    """
+    :param filename: Name of the file to count
+    :param num_processes: Number of processes to do the map/reduce
+    :return: Number of lines to process for each process
+    """
+    lines_process = []
+    num_lines = sum(1 for line in open(filename)) # Count number of lines in the file
+    rest = num_lines % num_processes
 
-if __name__ == "__main__":
-    pieces=chunks('logs.txt', 4)
-    p = [multiprocessing.Pool(1) for i in range(4)]
+    for i in range(0, num_processes):
+        if i == num_processes - 1:
+            lines_process.append(int(num_lines / num_processes) + rest)
+        else:
+            lines_process.append(int(num_lines / num_processes))
+
+    return lines_process
+
+
+def chunks(filename, num_processes):
+    """
+    :param filename: Name of the file to count
+    :param num_processes: Number of processes to do the map/reduce
+    :return: A matrix [][] with the lines to process for each process
+    """
+    chunks = []
+    file = open(filename, 'rb')
+
+    for lines in num_lines_file(filename, num_processes):
+        chunk = []
+        for each_line in range(0, lines):
+            chunk.append(file.readline())
+        chunks.append(chunk)
+
+    return chunks
+
+
+def map_reduce_random_test(input_file, output_file, num_processes):
+    start_time = time.time()
+    print "Starting Map/Reduce Random Test ..."
+    pieces=chunks(input_file, num_processes)
+    p = multiprocessing.Pool(num_processes)
     mapping=[]
+
+    print "Map"
     for i, datum in enumerate(pieces): # Show the process and the piece
-        mapping.append( p[i%4].map(Map, (datum,)))
+        mapping.append( p.map(Map, (datum,)))
+
+    print "Partition"
     mapping=Partition(mapping)
 
     newMapping={}
-    for key in iter(mapping): # Show the process and the piece
-        newMapping[key]= p[i%4].apply(Reduce, [mapping[key]])
-        print key
-        print newMapping[key]
-        print '\n'
+    fo = open(output_file, "wb")# Open a file
 
+    print "Reduce"
+    for key in iter(mapping): # Show the process and the piece
+        newMapping[key]= p.apply(Reduce, [mapping[key]])
+        fo.write(str(key) + ": " + str(newMapping[key]) + "\n");
+
+    fo.close() # Close opend file
+
+    p.terminate()
+    p.join()
+
+    print "Map/Reduce Random Test finished!"
+
+    print("--- %s seconds ---" % (time.time() - start_time))
+
+
+def map_reduce_uniform_test(input_file, output_file, num_processes):
+    start_time = time.time()
+    print "Starting Map/Reduce Uniform Test..."
+    pieces=chunks(input_file, num_processes)
+    p = [multiprocessing.Pool(1) for i in range(num_processes)]
+    mapping=[]
+
+    print "Map"
+    for i, datum in enumerate(pieces): # Show the process and the piece
+        mapping.append( p[i%num_processes].map(Map, (datum,)))
+
+    print "Partition"
+    mapping=Partition(mapping)
+
+    newMapping={}
+    fo = open(output_file, "wb")# Open a file
+
+    print "Reduce"
+    for key in iter(mapping): # Show the process and the piece
+        newMapping[key]= p[i%num_processes].apply(Reduce, [mapping[key]])
+        fo.write(str(key) + ": " + str(newMapping[key]) + "\n");
+
+    fo.close() # Close opend file
+
+    for pool in p:
+        pool.terminate()
+        pool.join()
+
+    print "Map/Reduce Uniform Test finished!"
+
+    print("--- %s seconds ---" % (time.time() - start_time))
+
+if __name__ == "__main__":
+
+    map_reduce_random_test('file/logs.txt', 'file/outputA1.txt', 4)
+    map_reduce_random_test('file/logs.txt', 'file/outputA2.txt', 8)
+    map_reduce_random_test('file/logs.txt', 'file/outputA3.txt', 16)
+
+    map_reduce_uniform_test('file/logs.txt', 'file/outputB1.txt', 4)
+    map_reduce_uniform_test('file/logs.txt', 'file/outputB2.txt', 8)
+    map_reduce_uniform_test('file/logs.txt', 'file/outputB3.txt', 16)
