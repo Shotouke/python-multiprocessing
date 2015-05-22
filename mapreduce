@@ -3,35 +3,92 @@ __author__ = 'Xavi Domenech & Manuel Rojo'
 import string
 import multiprocessing
 import time
+import sys
+from memory_profiler import memory_usage
+import cPickle
+import numpy
 
+timeList = []
+memoryUsageList = []
+
+num_processes=8
+
+def initLists(i):
+
+    multiprocessing.current_process().__setattr__('mapMem', [])
+    multiprocessing.current_process().__setattr__('mapBWin', [])
+    multiprocessing.current_process().__setattr__('mapBWout',[])
+    multiprocessing.current_process().__setattr__('reduceMem', [])
+    multiprocessing.current_process().__setattr__('reduceBWin', [])
+    multiprocessing.current_process().__setattr__('reduceBWout',[])
+    time.sleep(1)
+
+def retriveMemory(i):
+
+    mapMem=multiprocessing.current_process().__getattribute__('mapMem')
+    mapBWin=multiprocessing.current_process().__getattribute__('mapBWin')
+    mapBWout=multiprocessing.current_process().__getattribute__('mapBWout')
+    reduceMem=multiprocessing.current_process().__getattribute__('reduceMem')
+    reduceBWin=multiprocessing.current_process().__getattribute__('reduceBWin')
+    reduceBWout=multiprocessing.current_process().__getattribute__('reduceBWout')
+    print "I am {} and these are my memory values for the map: MaxMemoryUsage={} MinMemoryUsage={} AvgMemoryUsage={}".format(multiprocessing.current_process().name, numpy.amax(mapMem), numpy.amin(mapMem), numpy.average(mapMem))
+    print "I am {} and these are my INbandwidth values for the map: maxInBWmap={} minInBWmap={} avgInBWmap={}".format(multiprocessing.current_process().name,numpy.amax(mapBWin),numpy.amin(mapBWin), numpy.average(mapBWin))
+    print "I am {} and these are my  OUTbandwidth values for the map: maxOutBWmap={} minOutBWmap={} avgOutBWmap={}".format(multiprocessing.current_process().name,numpy.amax(mapBWout),numpy.amin(mapBWout), numpy.average(mapBWout))
+    print "I am {} and these are my memory valuesfor the reduce: MaxMemoryUsage={} MinMemoryUsage={} AvgMemoryUsage={}".format(multiprocessing.current_process().name, numpy.amax(reduceMem), numpy.amin(reduceMem), numpy.average(reduceMem))
+    print "I am {} and these are my INbandwidth values for the reduce: maxInBWmap={} minInBWmap={} avgInBWmap={}".format(multiprocessing.current_process().name,numpy.amax(reduceBWin),numpy.amin(reduceBWin), numpy.average(reduceBWin))
+    print "I am {} and these are my  OUTbandwidth values for the reduce: maxOutBWmap={} minOutBWmap={} avgOutBWmap={}".format(multiprocessing.current_process().name,numpy.amax(reduceBWout),numpy.amin(reduceBWout), numpy.average(reduceBWout))
 
 def Map(L):
-    print multiprocessing.current_process().name
+
     result = {}
     for i, datum in enumerate(L):
         a=string.split(datum, '	')
         key=(a[0],a[3],a[5]);
         if result.has_key(key)==False:
             result[key]=[]
-        result[key].append(1)
+        result[key]=[result[key][0]+1]
+
+    mem=multiprocessing.current_process().__getattribute__('mapMem')
+    mem.append((memory_usage(-1)[0]))
+    multiprocessing.current_process().__setattr__('mapMem', mem)
+    BWin=multiprocessing.current_process().__getattribute__('mapBWin')
+    BWin.append(sys.getsizeof(cPickle.dumps(L)))
+    multiprocessing.current_process().__setattr__('mapBWin', BWin)
+    BWout=multiprocessing.current_process().__getattribute__('mapBWout')
+    BWout.append(sys.getsizeof(cPickle.dumps(result)))
+    multiprocessing.current_process().__setattr__('mapBWout', BWout)
+
     return result
 
 
 def Partition(mapping):
     newDict={}
     for i in mapping:
-        dict=i[0]
+        dict = i[0]
         for key in iter(dict):
-            if newDict.has_key(key)==False:
-                newDict[key]=dict[key]
+            if newDict.has_key(key) == False:
+                newDict[key] = dict[key]
             else:
                 newDict[key].extend(dict[key])
     return newDict
 
+def Reduce(mapping):
 
-def Reduce(Mapping):
-    return  sum( Mapping)
+    result={}
+    print len(mapping.keys())
+    for key in iter(mapping):
+        result[key]=sum(mapping[key])
 
+    mem=multiprocessing.current_process().__getattribute__('reduceMem')
+    mem.append((memory_usage(-1)[0]))
+    multiprocessing.current_process().__setattr__('reduceMem', mem)
+    BWin=multiprocessing.current_process().__getattribute__('reduceBWin')
+    BWin.append(sys.getsizeof(cPickle.dumps(mapping)))
+    multiprocessing.current_process().__setattr__('reduceBWin', BWin)
+    BWout=multiprocessing.current_process().__getattribute__('reduceBWout')
+    BWout.append(sys.getsizeof(cPickle.dumps(result)))
+    multiprocessing.current_process().__setattr__('reduceBWout', BWout)
+    return result
 
 def num_lines_file(filename, num_processes):
     """
@@ -51,6 +108,24 @@ def num_lines_file(filename, num_processes):
 
     return lines_process
 
+def num_reducer(dict, num_processes):
+    """
+    :param filename: Name of the file to count
+    :param num_processes: Number of processes to do the map/reduce
+    :return: Number of lines to process for each process
+    """
+
+    entries= len(dict) # Count number of lines in the file
+    rest = entries % num_processes
+    reducerlist=[]
+
+    for i in range(0, num_processes):
+        if i == num_processes - 1:
+            reducerlist.append(int(entries / num_processes) + rest)
+        else:
+            reducerlist.append(int(entries / num_processes))
+
+    return reducerlist
 
 def chunks(filename, num_processes):
     """
@@ -69,77 +144,103 @@ def chunks(filename, num_processes):
 
     return chunks
 
+def dictChunks(data, SIZE):
+    i=0
+    dictlist = [dict() for x in range(SIZE)]
+    for key in iter(data):
+        dictlist[i%SIZE][key]=data[key]
+        i=i+1
+    return dictlist
 
-def map_reduce_random_test(input_file, output_file, num_processes):
+def map_reduce_random_test(input_file, output_file, p):
+
     start_time = time.time()
-    print "Starting Map/Reduce Random Test ..."
     pieces=chunks(input_file, num_processes)
-    p = multiprocessing.Pool(num_processes)
     mapping=[]
 
-    print "Map"
     for i, datum in enumerate(pieces): # Show the process and the piece
         mapping.append( p.map(Map, (datum,)))
 
-    print "Partition"
     mapping=Partition(mapping)
+    map2=dictChunks(mapping, num_processes)
 
-    newMapping={}
+    result=p.map(Reduce, map2)
     fo = open(output_file, "wb")# Open a file
 
-    print "Reduce"
-    for key in iter(mapping): # Show the process and the piece
-        newMapping[key]= p.apply(Reduce, [mapping[key]])
-        fo.write(str(key) + ": " + str(newMapping[key]) + "\n");
+    for i in range(num_processes): # Show the process and the piece
+        for key in iter(result[i]):
+            fo.write(str(key) + ": " + str(result[i][key]) + "\n");
 
     fo.close() # Close opend file
 
-    p.terminate()
-    p.join()
 
-    print "Map/Reduce Random Test finished!"
-
-    print("--- %s seconds ---" % (time.time() - start_time))
+    timeList.append(time.time() - start_time)
+    memoryUsageList.append(memory_usage(-1)[0])
 
 
-def map_reduce_uniform_test(input_file, output_file, num_processes):
+def map_reduce_uniform_test(input_file, output_file, p):
     start_time = time.time()
-    print "Starting Map/Reduce Uniform Test..."
-    pieces=chunks(input_file, num_processes)
-    p = [multiprocessing.Pool(1) for i in range(num_processes)]
-    mapping=[]
 
-    print "Map"
+    pieces=chunks(input_file, num_processes)
+
+    mapping=[]
     for i, datum in enumerate(pieces): # Show the process and the piece
         mapping.append( p[i%num_processes].map(Map, (datum,)))
 
-    print "Partition"
     mapping=Partition(mapping)
+    map2=dictChunks(mapping, num_processes)
 
-    newMapping={}
     fo = open(output_file, "wb")# Open a file
 
-    print "Reduce"
-    for key in iter(mapping): # Show the process and the piece
-        newMapping[key]= p[i%num_processes].apply(Reduce, [mapping[key]])
-        fo.write(str(key) + ": " + str(newMapping[key]) + "\n");
+    for i in range(num_processes): # Show the process and the piece
+        result= p[i].map(Reduce, [map2[i]])
+
+        for key in iter(result[0]):
+            fo.write(str(key) + ": " + str(result[0][key]) + "\n");
 
     fo.close() # Close opend file
 
-    for pool in p:
-        pool.terminate()
-        pool.join()
+    timeList.append(time.time() - start_time)
+    memoryUsageList.append(memory_usage(-1)[0])
 
-    print "Map/Reduce Uniform Test finished!"
-
-    print("--- %s seconds ---" % (time.time() - start_time))
 
 if __name__ == "__main__":
 
-    map_reduce_random_test('file/logs.txt', 'file/outputA1.txt', 4)
-    map_reduce_random_test('file/logs.txt', 'file/outputA2.txt', 8)
-    map_reduce_random_test('file/logs.txt', 'file/outputA3.txt', 16)
+    num_processes=2
+    NTests=2
+    test = 1 #func=0 if your want to run the random test or 1 if you want to run the uniform one
 
-    map_reduce_uniform_test('file/logs.txt', 'file/outputB1.txt', 4)
-    map_reduce_uniform_test('file/logs.txt', 'file/outputB2.txt', 8)
-    map_reduce_uniform_test('file/logs.txt', 'file/outputB3.txt', 16)
+    if test==0:
+        p = multiprocessing.Pool(num_processes)
+        p.map(initLists, range(num_processes))
+
+        for i in range(NTests):
+            print "Runing Map/Reduce Random test #{}..".format(i)
+            map_reduce_random_test('logs.txt', 'outputA1.txt', p)
+
+        print "Maximum Time = {}, Minimum Time = {}, Average Time = {}".format(numpy.amax(timeList),numpy.amin(timeList),numpy.average(timeList))
+        print "Maximum Memory Usage = {}, Minimum Memory Usage = {}, Average Memory Usage = {}".format(numpy.amax(memoryUsageList),numpy.amin(memoryUsageList),numpy.average(memoryUsageList))
+
+        p.map(retriveMemory,range(num_processes))
+        p.terminate()
+        p.join()
+
+    else:
+        p = [multiprocessing.Pool(1) for i in range(num_processes)]
+        verts = [1]*num_processes
+        for i, datum in enumerate(verts): # Show the process and the piece
+            p[i].map(initLists, [verts])
+
+        for i in range(NTests):
+            print "Runing Map/Reduce Uniform test #{}..".format(i)
+            map_reduce_uniform_test('logs.txt', 'outputB1.txt', p)
+        print "Maximum Time = {}, Minimum Time = {}, Average Time = {}".format(numpy.amax(timeList),numpy.amin(timeList),numpy.average(timeList))
+        print "Maximum Memory Usage = {}, Minimum Memory Usage = {}, Average Memory Usage = {}".format(numpy.amax(memoryUsageList),numpy.amin(memoryUsageList),numpy.average(memoryUsageList))
+
+
+        verts = [1]*num_processes
+        for i, datum in enumerate(verts): # Show the process and the piece
+            p[i].apply(retriveMemory, [verts])
+        for pool in p:
+            pool.terminate()
+            pool.join()
