@@ -45,7 +45,9 @@ def Map(L):
         a=string.split(datum, '	')
         key=(a[0],a[3],a[5]);
         if result.has_key(key)==False:
-            result[key]=[]
+            #result[key]=[]
+            result[key]=[0]
+        #result[key].append(1)
         result[key]=[result[key][0]+1]
 
     mem=multiprocessing.current_process().__getattribute__('mapMem')
