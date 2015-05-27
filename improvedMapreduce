@@ -11,8 +11,6 @@ import numpy
 timeList = []
 memoryUsageList = []
 
-num_processes=8
-
 def initLists(i):
 
     multiprocessing.current_process().__setattr__('mapMem', [])
@@ -35,8 +33,8 @@ def retriveMemory(i):
     print "I am {} and these are my INbandwidth values for the map: maxInBWmap={} minInBWmap={} avgInBWmap={}".format(multiprocessing.current_process().name,numpy.amax(mapBWin),numpy.amin(mapBWin), numpy.average(mapBWin))
     print "I am {} and these are my  OUTbandwidth values for the map: maxOutBWmap={} minOutBWmap={} avgOutBWmap={}".format(multiprocessing.current_process().name,numpy.amax(mapBWout),numpy.amin(mapBWout), numpy.average(mapBWout))
     print "I am {} and these are my memory valuesfor the reduce: MaxMemoryUsage={} MinMemoryUsage={} AvgMemoryUsage={}".format(multiprocessing.current_process().name, numpy.amax(reduceMem), numpy.amin(reduceMem), numpy.average(reduceMem))
-    print "I am {} and these are my INbandwidth values for the reduce: maxInBWmap={} minInBWmap={} avgInBWmap={}".format(multiprocessing.current_process().name,numpy.amax(reduceBWin),numpy.amin(reduceBWin), numpy.average(reduceBWin))
-    print "I am {} and these are my  OUTbandwidth values for the reduce: maxOutBWmap={} minOutBWmap={} avgOutBWmap={}".format(multiprocessing.current_process().name,numpy.amax(reduceBWout),numpy.amin(reduceBWout), numpy.average(reduceBWout))
+    print "I am {} and these are my INbandwidth values for the reduce: maxInBreduce={} minInBWreduce={} avgInBWreduce={}".format(multiprocessing.current_process().name,numpy.amax(reduceBWin),numpy.amin(reduceBWin), numpy.average(reduceBWin))
+    print "I am {} and these are my  OUTbandwidth values for the reduce: maxOutBWreduce={} minOutBWreduce={} avgOutBWreduce={}".format(multiprocessing.current_process().name,numpy.amax(reduceBWout),numpy.amin(reduceBWout), numpy.average(reduceBWout))
 
 def Map(L):
 
@@ -45,9 +43,7 @@ def Map(L):
         a=string.split(datum, '	')
         key=(a[0],a[3],a[5]);
         if result.has_key(key)==False:
-            #result[key]=[]
             result[key]=[0]
-        #result[key].append(1)
         result[key]=[result[key][0]+1]
 
     mem=multiprocessing.current_process().__getattribute__('mapMem')
@@ -77,7 +73,6 @@ def Partition(mapping):
 def Reduce(mapping):
 
     result={}
-    print len(mapping.keys())
     for key in iter(mapping):
         result[key]=sum(mapping[key])
 
@@ -208,9 +203,9 @@ def map_reduce_uniform_test(input_file, output_file, p):
 
 if __name__ == "__main__":
 
-    num_processes=2
-    NTests=2
-    test = 1 #func=0 if your want to run the random test or 1 if you want to run the uniform one
+    num_processes=4
+    NTests=100
+    test = 0 #func=0 if your want to run the random test or 1 if you want to run the uniform one
 
     if test==0:
         p = multiprocessing.Pool(num_processes)
